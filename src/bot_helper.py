@@ -3,6 +3,7 @@ from src.utilities import is_owner, safe_answer_callback
 from src.orm import SimpleORM
 from src.config import VERSION, load_settings
 from src.controllers import ChannelManager,UserManager
+from src.buttons import *
 
 settings = load_settings()
 orm      = SimpleORM.from_settings(settings)
@@ -10,12 +11,6 @@ orm      = SimpleORM.from_settings(settings)
 # USE CONTROLLERS
 user_manager    = UserManager(orm)
 channel_manager = ChannelManager(orm)
-
-# MAIN MENU
-MAIN_MENU_BTN = [
-    [Button.inline('📣 Channel management', b'channel_management')],
-    [Button.inline('🗞 Script information', b'script_info'), Button.inline('👤 Account information', b'acc_info')],
-]
 
 # BOT HELPER
 async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID: int, API_HASH: str, BOT_TOKEN: str, SELF_USER_ID: int):
@@ -111,16 +106,8 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
         elif data == 'channel_management':
             text = "📣 You can manage your channels in this section\n\n⌨️ Use the menu below to manage"
 
-            buttons = [
-                [Button.inline('• Channel list •', b'channel_management_list')],
-                [
-                    Button.inline('📚 User Guide', b'channel_management_help'),
-                    Button.inline('➕ Add channel', b'channel_management_add'),
-                ],
-                [Button.inline('🔙 Return to main menu', b'main_menu')]
-            ]
             try:
-                await event.edit(text, buttons=buttons)
+                await event.edit(text, buttons=CHANNEL_MANAGEMENT)
             except:
                 await safe_answer_callback(event, info_text, alert=True)
 
@@ -131,16 +118,38 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
 
         # ---------------- CHANNEL MANAGEMENT [list] ----------------
         elif data == 'channel_management_list':
-            pass
+            user_manager.update_user(sender, step="panel1")
+            channels = channel_manager.get_all_channels()
+
+            if not channels:
+                await event.edit("🔴 No source or destination registered.", buttons=BACK_MENU_BTN)
+                return
+        
+            preview_channels = channels[:13]
+            text             = "📋 List of channels (first 13):\n\n"
+        
+            for ch in preview_channels:
+                text += f"• -{ch['source_channel_id']}\n"
+                text += f"  ➜ To: -{ch['destination_channel_id']}\n\n"
+
+            buttons = [
+                [Button.inline("📄 Show all (txt)", data="channel_list_all")],
+                [Button.inline('🔙 Return to main menu', b'main_menu')]
+            ]
+
+            await event.edit(text, buttons=buttons)
 
         # ---------------- MAIN MENU ----------------
         elif data == 'main_menu':
             main_text = '🍓 **Your own self-management panel** \n\n'
             buttons   = MAIN_MENU_BTN
             try:
-                if user['step'] in ('none', 'channel_management'):
+                if user['step'] in ('none', 'not_set'):
                     user_manager.update_user(sender, step="none")
                     await event.edit(main_text, buttons=buttons)
+                elif user['step'] in ('panel1', 'panel2'):
+                    user_manager.update_user(sender, step="none")
+                    await event.edit(main_text, buttons=CHANNEL_MANAGEMENT)
                 else:
                     await event.edit(main_text, buttons=buttons)
             except:
