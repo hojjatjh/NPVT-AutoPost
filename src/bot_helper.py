@@ -1,3 +1,4 @@
+import os
 from telethon import TelegramClient, events, Button
 from src.utilities import is_owner, safe_answer_callback
 from src.orm import SimpleORM
@@ -133,11 +134,47 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
                 text += f"  ➜ To: -{ch['destination_channel_id']}\n\n"
 
             buttons = [
-                [Button.inline("📄 Show all (txt)", data="channel_list_all")],
+                [Button.inline("📄 Show all (txt)", b"channel_list_all")],
                 [Button.inline('🔙 Return to main menu', b'main_menu')]
             ]
 
             await event.edit(text, buttons=buttons)
+
+        # ---------------- CHANNEL MANAGEMENT [list (txt)] ----------------
+        elif data == 'channel_list_all':
+            user_manager.update_user(sender, step="panel1")
+            channels = channel_manager.get_all_channels()
+            await event.edit("⏳ Processing... Please wait...")
+
+            if not channels:
+                await event.respond("🔴 No source or destination registered.")
+                return
+
+            content = "🍓Powerful Strawberry Script \n📋 Full list of channels: \n\n"
+
+            for ch in channels:
+                content += f"ID: {ch['id']}\n"
+                content += f"source_channel_id: {ch['source_channel_id']}\n"
+                content += f"destination_channel_id: {ch['destination_channel_id']}\n"
+                content += "-"*30 + "\n"
+
+            file_path = "channels_list.txt"
+
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                await bot.send_file(sender, file_path, caption="🍓 Complete list of channels:")
+            except:
+                await event.edit("❌ Error communicating with user (please start the self-bot to send the file)")
+                return
+            finally:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+
+            await event.edit(
+                "📋 Channel list sent successfully.",
+                buttons=BACK_MENU_BTN
+            )
 
         # ---------------- MAIN MENU ----------------
         elif data == 'main_menu':
