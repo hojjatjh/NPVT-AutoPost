@@ -33,6 +33,7 @@ API_HASH        = os.getenv('TELEGRAM_API_HASH')
 BOT_TOKEN       = os.getenv('TELEGRAM_BOT_TOKEN')
 PHONE           = os.getenv('TELEGRAM_PHONE_NUMBER')
 SELF_USER_ID    = int(os.getenv('TELEGRAM_SELF_ID'))
+VERSION         = os.getenv('SCRIPT_VERSION')
 
 OWNERS: List[int] = [int(x.strip()) for x in os.getenv('TELEGRAM_OWNER_IDS').split(',') if x.strip()]
 
