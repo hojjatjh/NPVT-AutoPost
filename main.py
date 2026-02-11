@@ -3,7 +3,6 @@ import asyncio
 import logging
 from typing import List
 from src.config import *
-from src.controllers import *
 from src.models import setup
 from src.orm import SimpleORM
 from telethon import TelegramClient, events, Button
