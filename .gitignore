@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+.venv/
+tbott/
+build/
+dist/
+*.egg-info/
+.eggs/
+*.log
+.vscode/
+session/
+Thumbs.db
+*.session
+*.session-journal
