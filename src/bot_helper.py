@@ -35,7 +35,7 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
             user_manager.update_user(sender, step="none")
             return
     
-        # ================= STEP 1 : SOURCE =================
+        # ================= STEP 1 : panel2 =================
         if user["step"] == "panel2":
             try:
                 entity = await self.get_entity(text)
@@ -62,7 +62,7 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
             await event.reply("📤 Now send destination channel numeric ID (must start with -100)")
             return
     
-        # ================= STEP 2 : DEST =================
+        # ================= STEP 2 : panel2 =================
         if user["step"] == "panel2_dest":
         
             if not text.startswith("-100"):
@@ -87,8 +87,7 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
             )
             return
     
-    
-        # ================= STEP 3 : CONFIRM =================
+        # ================= STEP 3 : panel2 =================
         if user["step"] == "panel2_confirm":    
             if text.lower() == "yes":     
                 raw_data = user.get("data")
@@ -120,6 +119,42 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
                 await event.reply("Type yes or no")
                 return
 
+        # ================= STEP 1 : panel4 =================
+        if user["step"] == "panel4":
+            if not text.isdigit():
+                await event.reply("💩 The channel ID sent for deletion must be a numeric ID.")
+                return
+            
+            existing = channel_manager.get_by_source(f"-{text}")
+            if existing:
+                user_manager.update_user(sender, step="panel4_confirm", data=f"{existing['id']}")
+                await event.reply(f"🚨 Important Warning\n\nDo you want to completely delete the destination channel with numeric ID ( {existing['id']} )?\nWrite: Yes or No")
+                return
+            else:
+                await event.reply(f"📍 No destination channel with the same ID was found.")
+                return
+
+        # ================= STEP 2 : panel4 =================
+        if user["step"] == "panel4_confirm":
+            if text.lower() == "yes":     
+                channel_manager.delete_channel(user["data"])
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("✅ Relationship with success removed")
+                return
+    
+            elif text.lower() == "no":
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("❌ Operation successfully canceled.")
+                return
+    
+            elif text.lower() == ".panel" or  text.lower() == "/panel":
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("❌ Operation successfully canceled.")
+                return
+
+            else:
+                await event.reply("× Type yes or no")
+                return
 
     # ======================================== [ InlineQuery ]
     @bot.on(events.InlineQuery)
@@ -226,6 +261,57 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
                 buttons=BACK_MENU_BTN
             )
 
+        # ---------------- CHANNEL MANAGEMENT [del] ----------------
+        elif data == 'channel_management_del':
+            user_manager.update_user(sender, step="panel4", data='')
+            await event.edit(
+                "• To delete a channel connection (source and destination)\n\nPlease enter the source channel's numeric ID without the -",
+                buttons=BACK_MENU_BTN
+            )
+
+        # ---------------- CHANNEL MANAGEMENT [help] ----------------
+        elif data == 'channel_management_help':
+            user_manager.update_user(sender, step="panel2", data=json.dumps({}))
+            help_text = (
+                "📚 **Channel Management Guide**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "➕ **Add Channel**\n"
+                "──────────────────────\n"
+                "🎯 **Purpose:**\n"
+                "Register a source channel/group and link it to a destination channel for automatic operations.\n\n"
+                "⚙️ **How It Works:**\n"
+                "1️⃣ Send source channel/group:\n"
+                "   • `@username`\n"
+                "   • `https://t.me/...`\n"
+                "   • Numeric ID starting with `-100`\n\n"
+                "2️⃣ Send destination numeric ID\n"
+                "   • Must start with `-100`\n\n"
+                "3️⃣ Confirm information\n"
+                "   • Type: `yes` or `no`\n\n"
+                "✅ After Confirmation:\n"
+                "• Numeric ID will be resolved automatically\n"
+                "• Data securely saved in database\n"
+                "• Channel pair becomes active\n\n"
+                "⚠️ **Important Notes:**\n"
+                "• You must have proper access to channels\n"
+                "• Destination must always be numeric ID\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "📋 **Channel List**\n"
+                "──────────────────────\n"
+                "🎯 **Purpose:**\n"
+                "View all registered channel pairs.\n\n"
+                "📌 **Features:**\n"
+                "• Preview first channels inside panel\n"
+                "• Download full list as `.txt` file\n\n"
+                "📊 **Displays:**\n"
+                "• Record ID\n"
+                "• Source Channel ID\n"
+                "• Destination Channel ID\n\n"
+                "🔒 **Security:**\n"
+                "• Owner access only\n"
+                "• Temporary files auto-deleted after sending\n"
+            )
+            await event.edit(help_text, buttons=BACK_MENU_BTN)
 
         # ---------------- CHANNEL MANAGEMENT [list] ----------------
         elif data == 'channel_management_list':
@@ -240,8 +326,8 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
             text             = "📋 List of channels (first 13):\n\n"
         
             for ch in preview_channels:
-                text += f"• -{ch['source_channel_id']}\n"
-                text += f"  ➜ To: -{ch['destination_channel_id']}\n\n"
+                text += f"• {ch['source_channel_id']}\n"
+                text += f"  ➜ To: {ch['destination_channel_id']}\n\n"
 
             buttons = [
                 [Button.inline("📄 Show all (txt)", b"channel_list_all")],
@@ -294,7 +380,7 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
                 if user['step'] in ('none', 'not_set'):
                     user_manager.update_user(sender, step="none")
                     await event.edit(main_text, buttons=buttons)
-                elif user['step'] in ('panel1', 'panel2'):
+                elif user['step'] in ('panel1', 'panel2', 'panel3', 'panel4'):
                     user_manager.update_user(sender, step="none")
                     await event.edit(main_text, buttons=CHANNEL_MANAGEMENT)
                 else:

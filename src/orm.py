@@ -133,6 +133,25 @@ class SimpleORM:
                 row = cursor.fetchone()
         return row
 
+    def find_one_by(self, table: str, filters: dict[str, Any]) -> dict[str, Any] | None:
+        table_name = self._quote_identifier(table)
+    
+        if not filters:
+            return None
+    
+        for key in filters.keys():
+            self._validate_identifier(key)
+    
+        where_sql = " AND ".join(f"{self._quote_identifier(k)} = %s" for k in filters.keys())
+        sql = f"SELECT * FROM {table_name} WHERE {where_sql} LIMIT 1"
+    
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, list(filters.values()))
+                row = cursor.fetchone()
+    
+        return row
+
     def update_by_id(self, table: str, row_id: int, values: dict[str, Any]) -> bool:
         if not values:
             return False

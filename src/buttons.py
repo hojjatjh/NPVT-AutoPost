@@ -10,8 +10,9 @@ BACK_MENU_BTN = [
 CHANNEL_MANAGEMENT = [
     [Button.inline('• Channel list •', b'channel_management_list')],
     [
-        Button.inline('📚 User Guide', b'channel_management_help'),
+        Button.inline('➖ Delete channel', b'channel_management_del'),
         Button.inline('➕ Add channel', b'channel_management_add'),
     ],
+    [Button.inline('📚 User Guide', b'channel_management_help')],
     [Button.inline('🔙 Return to main menu', b'main_menu')]
 ]

@@ -40,6 +40,12 @@ class ChannelManager:
         """Delete channel mapping"""
         return self.orm.delete_by_id(self.table, channel_id)
 
+    def get_by_source(self, source_id: int) -> dict | None:
+        return self.orm.find_one_by(
+            self.table,
+            {"source_channel_id": source_id}
+        )
+
 class UserManager:
     """CRUD operations for 'users' table"""
 
