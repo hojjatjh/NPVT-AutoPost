@@ -27,5 +27,5 @@ def show_logo():
     ⠀⠀⠀⠀⠀⠙⠷⣦⣀⣶⣷⣸⡆⢀⣧⠀⣠⢇⣿⠀
     ⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠶⣤⣙⠛⣾⠳⣣⡾⠃⠀
     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠛⠛⠉⠀⠀⠀
-    Strawberries NPVT (1.0.0)
+    Strawberries NPVT(AutoPost) (1.0.0)
     """)

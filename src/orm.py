@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 from contextlib import contextmanager
@@ -69,6 +69,8 @@ class SimpleORM:
             database=self.database,
             cursorclass=DictCursor,
             autocommit=False,
+            charset="utf8mb4",
+            use_unicode=True,
         )
         try:
             yield conn
@@ -89,11 +91,40 @@ class SimpleORM:
             self._validate_identifier(col.name)
 
         column_sql = ", ".join(col.to_sql() for col in columns)
-        sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({column_sql})"
+        sql = (
+            f"CREATE TABLE IF NOT EXISTS {table_name} ({column_sql}) "
+            "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )
 
         with self._connect() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql)
+            conn.commit()
+
+    def ensure_table_utf8mb4(self, table: str) -> None:
+        table_name = self._quote_identifier(table)
+        sql = (
+            f"ALTER TABLE {table_name} "
+            "CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql)
+            conn.commit()
+
+    def ensure_column_exists(self, table: str, column: Column) -> None:
+        table_name = self._quote_identifier(table)
+        self._validate_identifier(column.name)
+
+        check_sql = f"SHOW COLUMNS FROM {table_name} LIKE %s"
+        add_sql = f"ALTER TABLE {table_name} ADD COLUMN {column.to_sql()}"
+
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(check_sql, [column.name])
+                exists = cursor.fetchone() is not None
+                if not exists:
+                    cursor.execute(add_sql)
             conn.commit()
 
     def insert(self, table: str, values: dict[str, Any]) -> int:
@@ -113,9 +144,12 @@ class SimpleORM:
             conn.commit()
         return new_id
 
-    def all(self, table: str) -> list[dict[str, Any]]:
+    def all(self, table: str, order_by: str | None = "id") -> list[dict[str, Any]]:
         table_name = self._quote_identifier(table)
-        sql = f"SELECT * FROM {table_name} ORDER BY id"
+        if order_by is None:
+            sql = f"SELECT * FROM {table_name}"
+        else:
+            sql = f"SELECT * FROM {table_name} ORDER BY {self._quote_identifier(order_by)}"
 
         with self._connect() as conn:
             with conn.cursor() as cursor:
@@ -135,22 +169,77 @@ class SimpleORM:
 
     def find_one_by(self, table: str, filters: dict[str, Any]) -> dict[str, Any] | None:
         table_name = self._quote_identifier(table)
-    
+
         if not filters:
             return None
-    
+
         for key in filters.keys():
             self._validate_identifier(key)
-    
+
         where_sql = " AND ".join(f"{self._quote_identifier(k)} = %s" for k in filters.keys())
         sql = f"SELECT * FROM {table_name} WHERE {where_sql} LIMIT 1"
-    
+
         with self._connect() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql, list(filters.values()))
                 row = cursor.fetchone()
-    
+
         return row
+
+    def count(self, table: str, filters: dict[str, Any] | None = None) -> int:
+        table_name = self._quote_identifier(table)
+        params: list[Any] = []
+
+        if filters:
+            for key in filters.keys():
+                self._validate_identifier(key)
+            where_sql = " AND ".join(f"{self._quote_identifier(k)} = %s" for k in filters.keys())
+            sql = f"SELECT COUNT(*) AS count_value FROM {table_name} WHERE {where_sql}"
+            params = list(filters.values())
+        else:
+            sql = f"SELECT COUNT(*) AS count_value FROM {table_name}"
+
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, params)
+                row = cursor.fetchone() or {"count_value": 0}
+        return int(row["count_value"])
+
+    def count_distinct(self, table: str, column: str, ignore_value: Any | None = None) -> int:
+        table_name = self._quote_identifier(table)
+        column_name = self._quote_identifier(column)
+        params: list[Any] = []
+
+        sql = f"SELECT COUNT(DISTINCT {column_name}) AS count_value FROM {table_name}"
+        if ignore_value is not None:
+            sql += f" WHERE {column_name} <> %s"
+            params.append(ignore_value)
+
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, params)
+                row = cursor.fetchone() or {"count_value": 0}
+        return int(row["count_value"])
+
+    def latest(self, table: str, order_by: str = "id") -> dict[str, Any] | None:
+        table_name = self._quote_identifier(table)
+        order_by_name = self._quote_identifier(order_by)
+        sql = f"SELECT * FROM {table_name} ORDER BY {order_by_name} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql)
+                row = cursor.fetchone()
+        return row
+
+    def truncate_table(self, table: str) -> None:
+        table_name = self._quote_identifier(table)
+        sql = f"TRUNCATE TABLE {table_name}"
+
+        with self._connect() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql)
+            conn.commit()
 
     def update_by_id(self, table: str, row_id: int, values: dict[str, Any]) -> bool:
         if not values:

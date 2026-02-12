@@ -1,8 +1,8 @@
-﻿from __future__ import annotations
-import os
-from typing import List
+from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from typing import List
 
 from dotenv import load_dotenv
 
@@ -18,6 +18,7 @@ class MySQLSettings:
     password: str
     database: str
 
+
 def load_settings() -> MySQLSettings:
     return MySQLSettings(
         host=os.getenv("DB_HOST", "127.0.0.1"),
@@ -27,18 +28,18 @@ def load_settings() -> MySQLSettings:
         database=os.getenv("DB_NAME", "test_db"),
     )
 
-# Load config from .env
-API_ID          = int(os.getenv('TELEGRAM_API_ID'))
-API_HASH        = os.getenv('TELEGRAM_API_HASH')
-BOT_TOKEN       = os.getenv('TELEGRAM_BOT_TOKEN')
-PHONE           = os.getenv('TELEGRAM_PHONE_NUMBER')
-SELF_USER_ID    = int(os.getenv('TELEGRAM_SELF_ID'))
-VERSION         = os.getenv('SCRIPT_VERSION')
 
-OWNERS: List[int] = [int(x.strip()) for x in os.getenv('TELEGRAM_OWNER_IDS').split(',') if x.strip()]
+API_ID = int(os.getenv("TELEGRAM_API_ID"))
+API_HASH = os.getenv("TELEGRAM_API_HASH")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+PHONE = os.getenv("TELEGRAM_PHONE_NUMBER")
+SELF_USER_ID = int(os.getenv("TELEGRAM_SELF_ID"))
+VERSION = os.getenv("SCRIPT_VERSION")
 
-# ------- Session paths -------
-SESSIONS_DIR = 'sessions'
+_owner_ids_raw = os.getenv("TELEGRAM_OWNER_IDS", "")
+OWNERS: List[int] = [int(x.strip()) for x in _owner_ids_raw.split(",") if x.strip()]
+
+SESSIONS_DIR = "sessions"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
-USER_SESSION = os.path.join(SESSIONS_DIR, 'userbot.session')
-BOT_SESSION  = os.path.join(SESSIONS_DIR, 'bot_helper.session')
+USER_SESSION = os.path.join(SESSIONS_DIR, "userbot.session")
+BOT_SESSION = os.path.join(SESSIONS_DIR, "bot_helper.session")
