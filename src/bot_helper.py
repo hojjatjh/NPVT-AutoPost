@@ -1,4 +1,5 @@
 import os
+import json
 from telethon import TelegramClient, events, Button
 from src.utilities import is_owner, safe_answer_callback
 from src.orm import SimpleORM
@@ -15,8 +16,110 @@ channel_manager = ChannelManager(orm)
 
 # BOT HELPER
 async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID: int, API_HASH: str, BOT_TOKEN: str, SELF_USER_ID: int):
-    bot = TelegramClient(BOT_SESSION, API_ID, API_HASH)
+    self = user_client
+    bot  = TelegramClient(BOT_SESSION, API_ID, API_HASH)
     await bot.start(bot_token=BOT_TOKEN)
+
+    # ======================================== [ NewMessage ]
+    @self.on(events.NewMessage)
+    async def message_handler(event):
+        sender = event.sender_id
+    
+        if not is_owner(sender):
+            return
+    
+        user = user_manager.ensure_user(sender, "none")
+        text = (event.text or "").strip()
+
+        if text == '.panel':
+            user_manager.update_user(sender, step="none")
+            return
+    
+        # ================= STEP 1 : SOURCE =================
+        if user["step"] == "panel2":
+            try:
+                entity = await self.get_entity(text)
+                source_id = entity.id
+
+                if hasattr(entity, "megagroup") or hasattr(entity, "broadcast"):
+                    source_id = int(f"-100{source_id}")
+
+            except Exception as e:
+                await event.reply("❌ Invalid channel/group. Make sure the self account is a member.")
+                return
+
+            raw_data  = user.get("data")
+            data_dict = json.loads(raw_data) if raw_data else {}
+
+            data_dict["source"] = source_id
+
+            user_manager.update_user(
+                sender,
+                step="panel2_dest",
+                data=json.dumps(data_dict)
+            )
+
+            await event.reply("📤 Now send destination channel numeric ID (must start with -100)")
+            return
+    
+        # ================= STEP 2 : DEST =================
+        if user["step"] == "panel2_dest":
+        
+            if not text.startswith("-100"):
+                await event.reply("❌ Destination must start with -100")
+                return
+    
+            raw_data = user.get("data")
+            if raw_data:
+                data_dict = json.loads(raw_data)
+            else:
+                data_dict = {}
+
+            data_dict["destination"] = text
+    
+            user_manager.update_user(sender, step="panel2_confirm", data=json.dumps(data_dict))
+    
+            await event.reply(
+                f"⚠️ Confirm registration:\n\n"
+                f"Source: {data_dict['source']}\n"
+                f"Destination: {data_dict['destination']}\n\n"
+                f"Type: yes / no"
+            )
+            return
+    
+    
+        # ================= STEP 3 : CONFIRM =================
+        if user["step"] == "panel2_confirm":    
+            if text.lower() == "yes":     
+                raw_data = user.get("data")
+                if raw_data:
+                    data_dict = json.loads(raw_data)
+                else:
+                    data_dict = {}
+
+                channel_manager.add_channel(
+                    source_id=data_dict["source"],
+                    dest_id=data_dict["destination"]
+                )
+    
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("✅ Channel registered successfully.")
+                return
+    
+            elif text.lower() == "no":
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("❌ Registration cancelled.")
+                return
+    
+            elif text.lower() == ".panel" or  text.lower() == "/panel":
+                user_manager.update_user(sender, step="none", data=json.dumps({}))
+                await event.reply("❌ Registration cancelled.")
+                return
+
+            else:
+                await event.reply("Type yes or no")
+                return
+
 
     # ======================================== [ InlineQuery ]
     @bot.on(events.InlineQuery)
@@ -27,6 +130,7 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
 
         q = (event.text or '').strip().lower()
         if q in ('panel', ''):
+            user_manager.update_user(event.sender_id, step="none")
             result = event.builder.article(
                 title       = '🔮 Self-adhesive panel',
                 description = 'Admin Panel — For Admins Only',
@@ -34,7 +138,6 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
                 buttons     = MAIN_MENU_BTN
             )
             await event.answer([result], cache_time=0)
-
 
 
     # ======================================== [ CallbackQuery ]
@@ -114,7 +217,14 @@ async def start_helper_bot(user_client: TelegramClient, BOT_SESSION: str, API_ID
 
         # ---------------- CHANNEL MANAGEMENT [add] ----------------
         elif data == 'channel_management_add':
-            pass
+            user_manager.update_user(sender, step="panel2", data=json.dumps({}))
+            await event.edit(
+                "📥 Send source channel/group:\n\n"
+                "• Username: @example\n"
+                "• Or numeric ID starting with -100\n"
+                "• Or public link",
+                buttons=BACK_MENU_BTN
+            )
 
 
         # ---------------- CHANNEL MANAGEMENT [list] ----------------
