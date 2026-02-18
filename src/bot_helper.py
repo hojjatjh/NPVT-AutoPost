@@ -18,6 +18,25 @@ config_manager          = ConfigManager(orm)
 relay_settings_manager  = RelaySettingsManager(orm)
 
 
+async def resolve_channel_title(client: TelegramClient, channel_id: int) -> str:
+    """Return a readable title for the source ID or fall back to the numeric ID."""
+    try:
+        entity = await client.get_entity(channel_id)
+    except Exception:
+        return str(channel_id)
+
+    title = getattr(entity, "title", None)
+    if title:
+        return title
+
+    first_name = getattr(entity, "first_name", None)
+    last_name = getattr(entity, "last_name", None)
+    if first_name or last_name:
+        return " ".join(part for part in (first_name, last_name) if part)
+
+    return str(channel_id)
+
+
 def build_relay_settings_text() -> str:
     runtime = relay_settings_manager.get_runtime_settings()
     relay_state = "ON" if bool(runtime["relay_enabled"]) else "OFF"
@@ -538,7 +557,8 @@ async def start_helper_bot(
             preview_channels = channels[:13]
             text = "📋 List of channels (first 13):\n\n"
             for ch in preview_channels:
-                text += f"• {ch['source_channel_id']} -> {ch['destination_channel_id']}\n"
+                source_title = await resolve_channel_title(user_client, ch["source_channel_id"])
+                text += f"• {source_title} ->\n {ch['destination_channel_id']}\n\n"
 
             buttons = [
                 [Button.inline("📄 Show all (txt)", b"channel_list_all")],
